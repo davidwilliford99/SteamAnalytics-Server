@@ -1,0 +1,6 @@
+pip freeze > requirements.txt
+^^^ This command updates dependancy list for requirements.txt
+
+pip install -r requirements.txt
+^^^ Installs dependencies to virtual env 
+
