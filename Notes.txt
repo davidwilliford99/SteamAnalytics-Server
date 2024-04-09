@@ -8,3 +8,6 @@ Evan Steam ID:     76561198144019438
 
 
 CoD appID = 1938090
+
+Some More API Docs
+* https://partner.steamgames.com/doc/webapi
