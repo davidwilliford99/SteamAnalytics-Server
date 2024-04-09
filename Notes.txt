@@ -4,6 +4,7 @@ pip install -r requirements.txt
 
 My Steam ID:       76561199248657629
 Jerhald Steam ID:  76561198217389633
+Evan Steam ID:     76561198144019438
 
 
 CoD appID = 1938090
