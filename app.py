@@ -336,6 +336,48 @@ def library_value():
 
 
 
+#
+# Endpoint for individual game info
+# Takes url param 'appid'
+#
+@app.route('/steam/api/game-details', methods=['GET'])
+def get_game_details():
+    appid = request.args.get('appid')
+    if not appid:
+        return jsonify({'error': 'appid parameter is required'}), 400
+
+    steam_url = f'http://store.steampowered.com/api/appdetails?appids={appid}'
+    response = requests.get(steam_url)
+    data = response.json()
+
+    if not data.get(appid, {}).get('success', False):
+        return jsonify({'error': 'Failed to fetch game details or game not found'}), 404
+
+    game_data = data[appid]['data']
+
+    # Parsing the desired fields
+    details = {
+        'steam_appid': game_data.get('steam_appid'),
+        'images': {
+            'header_image': game_data.get('header_image'),
+            'background': game_data.get('background'),
+            'background_raw': game_data.get('background_raw'),
+        },
+        'pc_requirements': game_data.get('pc_requirements', {}).get('recommended'),
+        'developers': game_data.get('developers', []),
+        'publishers': game_data.get('publishers', []),
+        'categories': [{'id': category['id'], 'description': category['description']} for category in game_data.get('categories', [])],
+        'screenshots': [{'id': screenshot['id'], 'path_thumbnail': screenshot['path_thumbnail'], 'path_full': screenshot['path_full']} for screenshot in game_data.get('screenshots', [])],
+        'movies': [{'id': movie['id'], 'name': movie['name'], 'thumbnail': movie['thumbnail'], 'webm': movie['webm'], 'mp4': movie['mp4']} for movie in game_data.get('movies', [])],
+        'achievements': game_data.get('achievements', {}).get('total'),
+        'release_date': game_data.get('release_date', {}).get('date'),
+        'ratings': game_data.get('ratings', {}),
+        # Assuming 'base price' needs to be fetched or calculated separately as it's not directly available in the provided data snippet
+        'base_price': 'Price information not available in this dataset',
+    }
+
+    return jsonify(details)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
