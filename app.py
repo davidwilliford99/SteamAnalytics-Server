@@ -370,6 +370,7 @@ def get_game_details():
     details = {
         'steam_appid': game_data.get('steam_appid'),
         'title': game_data.get('name'),
+        'genre': game_data.get('genres'),
         'images': {
             'header_image': game_data.get('header_image'),
             'background': game_data.get('background'),
@@ -445,12 +446,15 @@ def get_apps_in_genre():
 #
 def get_game_details_locally(app_id):
     with app.test_request_context(f'?appid={app_id}'):
-        # Call the game details endpoint internally
         response, status_code = get_game_details()
         if status_code == 200:
             return response.get_json()  # Extract the JSON data from the response object
         else:
             return None
+        
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
+
