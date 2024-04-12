@@ -355,9 +355,21 @@ def get_game_details():
 
     game_data = data[appid]['data']
 
+    # Find the cheapest sub from 'default' package group
+    default_package_group = next((group for group in game_data.get('package_groups', []) if group['name'] == 'default'), None)
+    cheapest_sub = None
+    if default_package_group:
+        subs = default_package_group.get('subs', [])
+        if subs:
+            # Find the sub with the lowest price
+            cheapest_sub = min(subs, key=lambda x: x['price_in_cents_with_discount'])
+            # Convert price from cents to dollars
+            cheapest_sub['price_in_dollars'] = cheapest_sub['price_in_cents_with_discount'] / 100.0
+
     # Parsing the desired fields
     details = {
         'steam_appid': game_data.get('steam_appid'),
+        'title': game_data.get('name'),
         'images': {
             'header_image': game_data.get('header_image'),
             'background': game_data.get('background'),
@@ -372,12 +384,73 @@ def get_game_details():
         'achievements': game_data.get('achievements', {}).get('total'),
         'release_date': game_data.get('release_date', {}).get('date'),
         'ratings': game_data.get('ratings', {}),
-        # Assuming 'base price' needs to be fetched or calculated separately as it's not directly available in the provided data snippet
-        'base_price': 'Price information not available in this dataset',
+        'base_price': cheapest_sub['price_in_dollars'] if cheapest_sub else 'Free' if game_data.get('is_free', False) else 'Price information not available',
     }
 
-    return jsonify(details)
+    return jsonify(details), 200  # Explicitly return a status code
 
+
+
+
+
+#
+# Featured Games (Windows only)
+#
+@app.route('/steam/api/featured-games/', methods=['GET'])
+def get_featured_games():
+    url = 'http://store.steampowered.com/api/featured'
+    response = requests.get(url)
+    data = response.json()
+    
+    featured_win = data.get('featured_win', [])
+    return jsonify(featured_win)
+
+
+
+#
+# Getting apps for genre 
+# takes in url param 'genre'
+#
+@app.route('/steam/api/apps-in-genre', methods=['GET'])
+def get_apps_in_genre():
+    genre = request.args.get('genre')
+    if not genre:
+        return jsonify({'error': 'Genre parameter is required'}), 400
+
+    # Fetching genre-specific game IDs
+    url = f'http://store.steampowered.com/api/getappsingenre?genre={genre}'
+    response = requests.get(url)
+    if response.status_code != 200:
+        return jsonify({'error': 'Failed to fetch data'}), response.status_code
+
+    data = response.json()
+    full_game_details = []
+
+    # Iterate through tabs like 'featured', 'newreleases', etc.
+    for tab_name, tab_content in data.get('tabs', {}).items():
+        # Process each game in the tab
+        for item in tab_content.get('items', []):
+            app_id = item.get('id')
+            if app_id:
+                # Call local function to fetch details from '/steam/api/game-details'
+                game_details = get_game_details_locally(app_id)
+                if game_details:
+                    full_game_details.append(game_details)
+
+    return jsonify(full_game_details)
+
+
+#
+# Get game details locally
+#
+def get_game_details_locally(app_id):
+    with app.test_request_context(f'?appid={app_id}'):
+        # Call the game details endpoint internally
+        response, status_code = get_game_details()
+        if status_code == 200:
+            return response.get_json()  # Extract the JSON data from the response object
+        else:
+            return None
 
 if __name__ == '__main__':
     app.run(debug=True)
