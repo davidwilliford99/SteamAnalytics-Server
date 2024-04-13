@@ -344,14 +344,16 @@ def library_value():
 def get_game_details():
     appid = request.args.get('appid')
     if not appid:
-        return jsonify({'error': 'appid parameter is required'}), 400
+        return jsonify({'error': 'AppID parameter is required'}), 400
 
     steam_url = f'http://store.steampowered.com/api/appdetails?appids={appid}'
     response = requests.get(steam_url)
-    data = response.json()
+    if response.status_code != 200:
+        return jsonify({'error': 'Failed to connect to the Steam API'}), response.status_code
 
+    data = response.json()
     if not data.get(appid, {}).get('success', False):
-        return jsonify({'error': 'Failed to fetch game details or game not found'}), 404
+        return jsonify({'error': 'Game details not found'}), 404
 
     game_data = data[appid]['data']
 
@@ -366,29 +368,41 @@ def get_game_details():
             # Convert price from cents to dollars
             cheapest_sub['price_in_dollars'] = cheapest_sub['price_in_cents_with_discount'] / 100.0
 
-    # Parsing the desired fields
+    # Use your original base price logic
+    base_price = cheapest_sub['price_in_dollars'] if cheapest_sub else 'Free' if game_data.get('is_free', False) else 'Price information not available'
+
+    # Constructing the response
     details = {
-        'steam_appid': game_data.get('steam_appid'),
-        'title': game_data.get('name'),
-        'genre': game_data.get('genres'),
+        'steam_appid': game_data.get('steam_appid', 'No AppID'),
+        'title': game_data.get('name', 'No title available'),
+        'genre': [genre['description'] for genre in game_data.get('genres', []) if 'description' in genre],
         'images': {
             'header_image': game_data.get('header_image'),
             'background': game_data.get('background'),
-            'background_raw': game_data.get('background_raw'),
+            'background_raw': game_data.get('background_raw')
         },
-        'pc_requirements': game_data.get('pc_requirements', {}).get('recommended'),
         'developers': game_data.get('developers', []),
         'publishers': game_data.get('publishers', []),
-        'categories': [{'id': category['id'], 'description': category['description']} for category in game_data.get('categories', [])],
-        'screenshots': [{'id': screenshot['id'], 'path_thumbnail': screenshot['path_thumbnail'], 'path_full': screenshot['path_full']} for screenshot in game_data.get('screenshots', [])],
-        'movies': [{'id': movie['id'], 'name': movie['name'], 'thumbnail': movie['thumbnail'], 'webm': movie['webm'], 'mp4': movie['mp4']} for movie in game_data.get('movies', [])],
-        'achievements': game_data.get('achievements', {}).get('total'),
-        'release_date': game_data.get('release_date', {}).get('date'),
+        'categories': [{'id': cat['id'], 'description': cat['description']} for cat in game_data.get('categories', [])],
+        'screenshots': [{'id': sc['id'], 'path_thumbnail': sc['path_thumbnail'], 'path_full': sc['path_full']} for sc in game_data.get('screenshots', [])],
+        'movies': [
+            {
+                'id': movie['id'],
+                'name': movie['name'],
+                'thumbnail': movie['thumbnail'],
+                'webm': movie.get('webm', {}),
+                'mp4': movie.get('mp4', {})
+            } for movie in game_data.get('movies', [])
+        ],
+        'achievements': game_data.get('achievements', {}).get('total', 0),
+        'release_date': game_data.get('release_date', {}).get('date', 'No release date'),
         'ratings': game_data.get('ratings', {}),
-        'base_price': cheapest_sub['price_in_dollars'] if cheapest_sub else 'Free' if game_data.get('is_free', False) else 'Price information not available',
+        'base_price': base_price
     }
 
-    return jsonify(details), 200  # Explicitly return a status code
+    return jsonify(details), 200  # Successful response with game details
+
+
 
 
 
