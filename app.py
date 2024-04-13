@@ -371,6 +371,10 @@ def get_game_details():
     # Use your original base price logic
     base_price = cheapest_sub['price_in_dollars'] if cheapest_sub else 'Free' if game_data.get('is_free', False) else 'Price information not available'
 
+     # Check if 'pc_requirements' exists and is not empty, otherwise return None
+    pc_requirements = game_data.get('pc_requirements', {}).get('recommended') if 'pc_requirements' in game_data and game_data['pc_requirements'] else None
+
+
     # Constructing the response
     details = {
         'steam_appid': game_data.get('steam_appid', 'No AppID'),
@@ -397,6 +401,7 @@ def get_game_details():
         'achievements': game_data.get('achievements', {}).get('total', 0),
         'release_date': game_data.get('release_date', {}).get('date', 'No release date'),
         'ratings': game_data.get('ratings', {}),
+        'pc_requirements': pc_requirements,
         'base_price': base_price
     }
 
