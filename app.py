@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from datetime import datetime
 from flask_cors import CORS
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 from math import floor
 import requests
 import time
@@ -9,12 +11,48 @@ import os
 
 
 app = Flask(__name__)
+
+# Database Setup
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///steamdata.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# User model
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    steam_id = db.Column(db.String(120), unique=True, nullable=False)
+
+# CORS setup
 CORS(app) 
+
+
+
 
 
 # Steam API Key
 load_dotenv()
 api_key = os.getenv("STEAM_API_KEY")
+
+
+
+#
+# Adding Users Endpoint
+#
+@app.route('/add_user', methods=['POST'])
+def add_user():
+    steam_id = request.json.get('steam_id')
+    if steam_id:
+        existing_user = User.query.filter_by(steam_id=steam_id).first()
+        if existing_user is None:
+            new_user = User(steam_id=steam_id)
+            db.session.add(new_user)
+            db.session.commit()
+            return jsonify({'message': 'User added successfully!'}), 201
+        else:
+            return jsonify({'message': 'Steam ID already exists'}), 409
+    return jsonify({'error': 'Missing steam_id in request'}), 400
+
+
 
 
 
