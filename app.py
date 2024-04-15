@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from datetime import datetime
 from flask_cors import CORS
-from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from math import floor
 import requests
@@ -11,19 +10,33 @@ import os
 
 
 app = Flask(__name__)
+CORS(app)
+
+#
+# Initial Config
+# =================================================================================
+#
 
 # Database Setup
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///steamdata.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# Initializing DB
+with app.app_context():
+    print("Creating database tables...")
+    db.create_all()
+    print("Database tables created.")
+
+
 # User model
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    steam_id = db.Column(db.String(120), unique=True, nullable=False)
+    steam_id = db.Column(db.String(80), primary_key=True)
+    def __repr__(self):
+        return f'<User steam_id={self.steam_id}>'
 
-# CORS setup
-CORS(app) 
+
+# =================================================================================
 
 
 
@@ -38,19 +51,23 @@ api_key = os.getenv("STEAM_API_KEY")
 #
 # Adding Users Endpoint
 #
-@app.route('/add_user', methods=['POST'])
-def add_user():
-    steam_id = request.json.get('steam_id')
-    if steam_id:
-        existing_user = User.query.filter_by(steam_id=steam_id).first()
-        if existing_user is None:
-            new_user = User(steam_id=steam_id)
-            db.session.add(new_user)
-            db.session.commit()
-            return jsonify({'message': 'User added successfully!'}), 201
-        else:
-            return jsonify({'message': 'Steam ID already exists'}), 409
-    return jsonify({'error': 'Missing steam_id in request'}), 400
+@app.route('/add_user/<steam_id>', methods=['POST'])
+def add_user(steam_id):
+    if User.query.get(steam_id):
+        return 'User already exists'
+    new_user = User(steam_id=steam_id)
+    db.session.add(new_user)
+    db.session.commit()
+    return 'User added'
+
+
+#
+# List existing users endpoint
+#
+@app.route('/users')
+def list_users():
+    users = User.query.all()
+    return '<br>'.join([user.steam_id for user in users])
 
 
 
