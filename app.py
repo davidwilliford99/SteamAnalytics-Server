@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+import sqlite3
 from math import floor
 import requests
 import time
@@ -17,23 +18,82 @@ CORS(app)
 # =================================================================================
 #
 
-# Database Setup
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///steamdata.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-# Initializing DB
-with app.app_context():
-    print("Creating database tables...")
-    db.create_all()
-    print("Database tables created.")
+DATABASE = 'steamdata.db'
 
 
-# User model
-class User(db.Model):
-    steam_id = db.Column(db.String(80), primary_key=True)
-    def __repr__(self):
-        return f'<User steam_id={self.steam_id}>'
+def get_db():
+    conn = sqlite3.connect(DATABASE)
+    return conn
+
+
+def create_tables():
+    conn = get_db()
+    try:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                steam_id TEXT PRIMARY KEY NOT NULL
+            );
+        ''')
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# Call create_tables here to ensure it's always executed regardless of how the app is run.
+create_tables()
+
+
+@app.route('/add_user/<steam_id>', methods=['POST'])
+def add_user(steam_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT steam_id FROM users WHERE steam_id = ?', (steam_id,))
+        if cursor.fetchone():
+            return jsonify({'error': 'User already exists'}), 409
+        cursor.execute('INSERT INTO users (steam_id) VALUES (?)', (steam_id,))
+        conn.commit()
+        return jsonify({'message': 'User added'}), 201
+    finally:
+        conn.close()
+
+
+@app.route('/users')
+def list_users():
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT steam_id FROM users')
+        users = cursor.fetchall()
+        user_details = []
+        for user in users:
+            steam_id = user[0]
+            details = fetch_steam_user_details(steam_id)
+            if 'error' not in details:
+                user_info = {
+                    'steam_id': steam_id,
+                    'personaname': details.get('personaname', 'N/A'),
+                    'avatarmedium': details.get('avatarmedium', 'N/A')
+                }
+                user_details.append(user_info)
+            else:
+                user_details.append({'steam_id': steam_id, 'error': details['error']})
+        return jsonify({'users': user_details})
+    finally:
+        conn.close()
+
+
+
+def fetch_steam_user_details(steam_id):
+    url = f'http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key={api_key}&steamids={steam_id}'
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # This will raise an exception for HTTP errors
+        data = response.json()
+        return data['response']['players'][0] if data['response']['players'] else {}
+    except requests.RequestException as e:
+        return {"error": str(e)}
+
 
 
 # =================================================================================
@@ -45,29 +105,6 @@ class User(db.Model):
 # Steam API Key
 load_dotenv()
 api_key = os.getenv("STEAM_API_KEY")
-
-
-
-#
-# Adding Users Endpoint
-#
-@app.route('/add_user/<steam_id>', methods=['POST'])
-def add_user(steam_id):
-    if User.query.get(steam_id):
-        return 'User already exists'
-    new_user = User(steam_id=steam_id)
-    db.session.add(new_user)
-    db.session.commit()
-    return 'User added'
-
-
-#
-# List existing users endpoint
-#
-@app.route('/users')
-def list_users():
-    users = User.query.all()
-    return '<br>'.join([user.steam_id for user in users])
 
 
 
@@ -530,5 +567,6 @@ def get_game_details_locally(app_id):
 
 
 if __name__ == '__main__':
+    create_tables()
     app.run(debug=True)
 
