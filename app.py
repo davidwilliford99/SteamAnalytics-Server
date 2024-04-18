@@ -292,6 +292,7 @@ def get_game_price(appid):
     url = f'http://store.steampowered.com/api/appdetails?appids={appid}&filters=price_overview,basic'
     response = requests.get(url)
     data = response.json()
+    # print(data)
     if data[str(appid)]['success']:
         game_data = data[str(appid)]['data']
         # Check if the item is a game
